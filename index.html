@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CPU Scheduler Simulator</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+    <header>
+        <h1>Intelligent CPU Scheduler Simulator</h1>
+        <p>CSE 316: Operating Systems Project</p>
+    </header>
+
+    <main class="container">
+        
+        <section class="controls-container">
+            <h2>Controls</h2>
+            <form id="process-form">
+                <div class="form-group">
+                    <label for="arrival-time">Arrival Time:</label>
+                    <input type="number" id="arrival-time" min="0" value="0" required>
+                </div>
+                <div class="form-group">
+                    <label for="burst-time">Burst Time:</label>
+                    <input type="number" id="burst-time" min="1" value="5" required>
+                </div>
+                <div class="form-group">
+                    <label for="priority">Priority:</label>
+                    <input type="number" id="priority" min="0" value="0" required>
+                </div>
+
+                <div class="form-buttons">
+                    <button type="button" id="add-process-btn">Add Process</button>
+                    <button type="button" id="clear-processes-btn">Clear List</button>
+                </div>
+
+                <hr>
+
+                <div class="form-group">
+                    <label for="algorithm-select">Algorithm:</label>
+                    <select id="algorithm-select">
+                        <option value="fcfs">FCFS</option>
+                        <option value="sjf">SJF (Non-Preemptive)</option>
+                        <option value="priority">Priority (Non-Preemptive)</option>
+                        <option value="rr">Round Robin</option>
+                    </select>
+                </div>
+                
+                <div class="form-group" id="time-quantum-group">
+                    <label for="time-quantum">Time Quantum:</label>
+                    <input type="number" id="time-quantum" min="1" value="2">
+                </div>
+
+                <button type="submit" id="run-simulation-btn">Run Simulation</button>
+            </form>
+        </section>
+
+        <section class="process-list-container">
+            <h2>Process List</h2>
+            <table id="process-table">
+                <thead>
+                    <tr>
+                        <th>PID</th>
+                        <th>Arrival</th>
+                        <th>Burst</th>
+                        <th>Priority</th>
+                    </tr>
+                </thead>
+                <tbody id="process-table-body">
+                    </tbody>
+            </table>
+        </section>
+
+        <section class="simulation-container">
+            <h2>Real-Time Simulation</h2>
+            <div class="simulation-stage">
+                <div id="ready-queue" class="queue-box">
+                    <h3>Ready Queue</h3>
+                    <div id="ready-queue-processes" class="process-holder"></div>
+                </div>
+                <div id="cpu" class="cpu-box">
+                    <h3>CPU</h3>
+                    <div id="cpu-process" class="process-holder"></div>
+                </div>
+                <div id="completed-processes" class="queue-box">
+                    <h3>Completed</h3>
+                    <div id="completed-processes-list" class="process-holder"></div>
+                </div>
+            </div>
+            <div id="simulation-timer-container">
+                Current Time: <span id="simulation-time">0</span>
+            </div>
+        </section>
+
+        <section class="results-container">
+            <h2>Results</h2>
+            
+            <div class="chart-container">
+                <canvas id="gantt-chart"></canvas>
+            </div>
+
+            <div id="metrics-container">
+                <h3>Performance Metrics</h3>
+                <p><strong>Average Waiting Time:</strong> <span id="avg-waiting-time">-</span></ins></p>
+                <p><strong>Average Turnaround Time:</strong> <span id="avg-turnaround-time">-</span></ins></p>
+            </div>
+        </section>
+
+    </main>
+
+    <script src="script.js"></script>
+</body>
+</html>
