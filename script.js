@@ -2,9 +2,10 @@
 document.addEventListener('DOMContentLoaded', () => {
 
     // --- 1. GLOBAL STATE ---
-    let processList = [];   // Array to store all process objects
-    let pidCounter = 1;     // Counter for unique Process IDs
-    let simulationRunning = false; // Flag to prevent multiple simulations
+    let processList = [];   
+    let pidCounter = 1;     
+    let ganttChart = null;  
+    let simulationRunning = false; 
 
     // --- 2. DOM ELEMENT REFERENCES ---
     const processForm = document.getElementById('process-form');
@@ -21,20 +22,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const processTableBody = document.getElementById('process-table-body');
     
-    // UI Elements (We will use these in later commits)
+    // Simulation "Stage" Elements
     const readyQueueProcesses = document.getElementById('ready-queue-processes');
     const cpuProcessHolder = document.getElementById('cpu-process');
     const completedProcessesList = document.getElementById('completed-processes-list');
     const simulationTime = document.getElementById('simulation-time');
 
+    // Results Elements
+    const ganttChartCanvas = document.getElementById('gantt-chart').getContext('2d');
+    const avgWaitingTime = document.getElementById('avg-waiting-time');
+    const avgTurnaroundTime = document.getElementById('avg-turnaround-time');
+
+
     // --- 3. EVENT LISTENERS ---
     addProcessBtn.addEventListener('click', addProcess);
     clearProcessesBtn.addEventListener('click', clearProcesses);
     algorithmSelect.addEventListener('change', toggleTimeQuantum);
-    processForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        alert("Simulation logic will be added in the next commit!");
-    });
+    processForm.addEventListener('submit', runSimulation); 
+
 
     // --- 4. CORE UI FUNCTIONS ---
 
@@ -90,6 +95,7 @@ document.addEventListener('DOMContentLoaded', () => {
         processList = [];
         pidCounter = 1;
         updateProcessTable();
+        resetResults();
     }
 
     function toggleTimeQuantum() {
@@ -99,4 +105,104 @@ document.addEventListener('DOMContentLoaded', () => {
             timeQuantumGroup.style.display = 'none';
         }
     }
+
+    function resetResults() {
+        avgWaitingTime.textContent = '-';
+        avgTurnaroundTime.textContent = '-';
+        simulationTime.textContent = '0';
+
+        readyQueueProcesses.innerHTML = '';
+        cpuProcessHolder.innerHTML = '';
+        completedProcessesList.innerHTML = '';
+
+        if (ganttChart) {
+            ganttChart.destroy();
+            ganttChart = null;
+        }
+    }
+
+    // --- 5. SIMULATION PREPARATION (Infrastructure) ---
+
+    async function runSimulation(e) {
+        e.preventDefault();
+        if (simulationRunning) return;
+        if (processList.length === 0) {
+            alert('Please add at least one process.');
+            return;
+        }
+
+        simulationRunning = true;
+        runSimulationBtn.disabled = true;
+        runSimulationBtn.textContent = "Running...";
+        resetResults();
+
+        const algorithm = algorithmSelect.value;
+        const timeQuantum = parseInt(timeQuantumInput.value);
+
+        if (algorithm === 'rr' && (isNaN(timeQuantum) || timeQuantum <= 0)) {
+            alert('Please enter a valid Time Quantum > 0 for Round Robin.');
+            simulationRunning = false;
+            runSimulationBtn.disabled = false;
+            runSimulationBtn.textContent = "Run Simulation";
+            return;
+        }
+
+        // Prepare the processes (Deep Copy)
+        const processes = JSON.parse(JSON.stringify(processList)).map(p => ({
+            ...p,
+            remainingTime: p.burst,
+            startTime: -1,
+            completionTime: 0,
+            waitingTime: 0,
+            turnaroundTime: 0
+        }));
+
+        console.log("Starting simulation with:", processes);
+        
+        // TODO: In the next commit, we will call animateSimulation() here
+        // For now, we just unlock the button after a small delay to simulate work
+        setTimeout(() => {
+            simulationRunning = false;
+            runSimulationBtn.disabled = false;
+            runSimulationBtn.textContent = "Run Simulation";
+            alert("Simulation infrastructure is ready! Algorithms coming in next commit.");
+        }, 1000);
+    }
+
+
+    // --- 6. ANIMATION HELPERS ---
+
+    function delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    function createProcessPill(pid) {
+        const pill = document.createElement('div');
+        pill.classList.add('process-pill');
+        pill.id = `pill-${pid}`;
+        pill.textContent = pid;
+        // We will add dynamic colors later
+        pill.style.backgroundColor = '#007bff'; 
+        return pill;
+    }
+
+    function updateUI(state) {
+        readyQueueProcesses.innerHTML = '';
+        state.readyQueue.forEach(p => {
+            readyQueueProcesses.appendChild(createProcessPill(p.pid));
+        });
+
+        cpuProcessHolder.innerHTML = '';
+        if (state.cpuProcess) {
+            cpuProcessHolder.appendChild(createProcessPill(state.cpuProcess.pid));
+        }
+
+        completedProcessesList.innerHTML = '';
+        state.completed.forEach(p => {
+            completedProcessesList.appendChild(createProcessPill(p.pid));
+        });
+
+        simulationTime.textContent = state.currentTime;
+    }
+
 });
