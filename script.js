@@ -2,10 +2,10 @@
 document.addEventListener('DOMContentLoaded', () => {
 
     // --- 1. GLOBAL STATE ---
-    let processList = [];   
-    let pidCounter = 1;     
-    let ganttChart = null;  
-    let simulationRunning = false; 
+    let processList = [];   // Array to store all process objects
+    let pidCounter = 1;     // Counter for unique Process IDs
+    let ganttChart = null;  // Variable to hold the Chart.js instance
+    let simulationRunning = false; // Flag to prevent multiple simulations
 
     // --- 2. DOM ELEMENT REFERENCES ---
     const processForm = document.getElementById('process-form');
@@ -38,9 +38,9 @@ document.addEventListener('DOMContentLoaded', () => {
     addProcessBtn.addEventListener('click', addProcess);
     clearProcessesBtn.addEventListener('click', clearProcesses);
     algorithmSelect.addEventListener('change', toggleTimeQuantum);
-    processForm.addEventListener('submit', runSimulation); 
+    processForm.addEventListener('submit', runSimulation); // Main entry point
 
-
+    
     // --- 4. CORE UI FUNCTIONS ---
 
     function addProcess() {
@@ -172,7 +172,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
 
-    // --- 6. ANIMATION ENGINE ---
+    // --- 6. ANIMATION ENGINE (Corrected) ---
 
     function delay(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
@@ -206,6 +206,9 @@ document.addEventListener('DOMContentLoaded', () => {
         simulationTime.textContent = state.currentTime;
     }
 
+    /**
+     * The main real-time simulation loop. (Corrected for bug)
+     */
     async function animateSimulation(processes, algorithm, timeQuantum, pids, chartData) {
         let currentTime = 0;
         let currentProcess = null;
@@ -310,7 +313,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
 
-    // --- 7. RESULTS & VISUALIZATION ---
+    // --- 7. RESULTS & VISUALIZATION (Updated for Real-Time) ---
 
     function calculateMetrics(completedProcesses) {
         let totalWaitingTime = 0;
@@ -387,25 +390,38 @@ document.addEventListener('DOMContentLoaded', () => {
         return { pids, chartData };
     }
 
+    /**
+     * *** THIS IS THE FIXED FUNCTION ***
+     * Updates the Gantt chart by merging consecutive time slices.
+     */
     function updateGanttChart(pid, start, end, pids, chartData) {
         const datasetIndex = pids.indexOf(pid);
         if (datasetIndex === -1) return;
 
         const data = chartData.datasets[datasetIndex].data;
         
+        // Check if we can merge with the last block
         if (data.length > 0) {
             const lastBlock = data[data.length - 1];
+            
+            // Check if the last block's end time is our start time
+            // This means it's a continuous run
             if (lastBlock[1] === start) {
+                // Merge by updating the last block's end time
                 lastBlock[1] = end;
                 ganttChart.update();
-                return;
+                return; // We are done
             }
         }
         
+        // If it's a new block (not continuous, e.g., for Round Robin), just push it.
         data.push([start, end]);
         ganttChart.update();
     }
 
+    /**
+     * Generates a consistent color for a PID.
+     */
     function getProcessColor(pid) {
         let hash = 0;
         for (let i = 0; i < pid.length; i++) {
@@ -413,7 +429,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         const c = (hash & 0x00FFFFFF).toString(16).toUpperCase();
         const color = "00000".substring(0, 6 - c.length) + c;
-        return `#${color}B3`;
+        return `#${color}B3`; // 70% opacity
     }
     
 });
