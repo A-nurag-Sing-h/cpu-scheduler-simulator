@@ -121,7 +121,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- 5. SIMULATION PREPARATION (Infrastructure) ---
+    // --- 5. SIMULATION START ---
 
     async function runSimulation(e) {
         e.preventDefault();
@@ -147,7 +147,6 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Prepare the processes (Deep Copy)
         const processes = JSON.parse(JSON.stringify(processList)).map(p => ({
             ...p,
             remainingTime: p.burst,
@@ -157,20 +156,23 @@ document.addEventListener('DOMContentLoaded', () => {
             turnaroundTime: 0
         }));
 
-        console.log("Starting simulation with:", processes);
-        
-        // TODO: In the next commit, we will call animateSimulation() here
-        // For now, we just unlock the button after a small delay to simulate work
-        setTimeout(() => {
+        try {
+            const { pids, chartData } = initGanttChart(processes);
+            const completedProcesses = await animateSimulation(processes, algorithm, timeQuantum, pids, chartData);
+            const metrics = calculateMetrics(completedProcesses);
+            updateMetrics(metrics);
+        } catch (error) {
+            console.error("Simulation failed:", error);
+            alert("An error occurred during the simulation.");
+        } finally {
             simulationRunning = false;
             runSimulationBtn.disabled = false;
             runSimulationBtn.textContent = "Run Simulation";
-            alert("Simulation infrastructure is ready! Algorithms coming in next commit.");
-        }, 1000);
+        }
     }
 
 
-    // --- 6. ANIMATION HELPERS ---
+    // --- 6. ANIMATION ENGINE ---
 
     function delay(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
@@ -181,8 +183,7 @@ document.addEventListener('DOMContentLoaded', () => {
         pill.classList.add('process-pill');
         pill.id = `pill-${pid}`;
         pill.textContent = pid;
-        // We will add dynamic colors later
-        pill.style.backgroundColor = '#007bff'; 
+        pill.style.backgroundColor = getProcessColor(pid);
         return pill;
     }
 
@@ -205,4 +206,214 @@ document.addEventListener('DOMContentLoaded', () => {
         simulationTime.textContent = state.currentTime;
     }
 
+    async function animateSimulation(processes, algorithm, timeQuantum, pids, chartData) {
+        let currentTime = 0;
+        let currentProcess = null;
+        let quantumCounter = 0;
+        
+        const readyQueue = [];
+        const completed = [];
+        const n = processes.length;
+
+        processes.sort((a, b) => a.arrival - b.arrival);
+
+        while (completed.length < n) {
+            
+            // 1. Check for arriving processes
+            processes.forEach(p => {
+                if (p.arrival === currentTime && !completed.find(c => c.pid === p.pid) && !readyQueue.find(r => r.pid === p.pid)) {
+                    readyQueue.push(p);
+                }
+            });
+            
+            // 2. If CPU is idle, try to select a process
+            if (currentProcess === null && readyQueue.length > 0) {
+                
+                if (algorithm === 'fcfs') {
+                    currentProcess = readyQueue.shift();
+                } 
+                else if (algorithm === 'sjf') {
+                    readyQueue.sort((a, b) => a.remainingTime - b.remainingTime);
+                    currentProcess = readyQueue.shift();
+                }
+                else if (algorithm === 'priority') {
+                    readyQueue.sort((a, b) => a.priority - b.priority);
+                    currentProcess = readyQueue.shift();
+                }
+                else if (algorithm === 'rr') {
+                    currentProcess = readyQueue.shift();
+                }
+
+                quantumCounter = 0;
+                if (currentProcess.startTime === -1) {
+                    currentProcess.startTime = currentTime;
+                }
+            }
+
+            // 3. If the CPU has a process, do one tick of work
+            if (currentProcess) {
+                updateGanttChart(currentProcess.pid, currentTime, currentTime + 1, pids, chartData);
+                currentProcess.remainingTime--;
+                quantumCounter++;
+
+                // Check for completion
+                if (currentProcess.remainingTime === 0) {
+                    currentProcess.completionTime = currentTime + 1;
+                    completed.push(currentProcess);
+                    currentProcess = null;
+                    quantumCounter = 0;
+                }
+                // Check for Round Robin preemption
+                else if (algorithm === 'rr' && quantumCounter === timeQuantum) {
+                    readyQueue.push(currentProcess);
+                    currentProcess = null;
+                    quantumCounter = 0;
+                }
+            }
+            
+            // 4. Update all UI elements
+            updateUI({
+                currentTime: currentTime,
+                readyQueue: readyQueue,
+                cpuProcess: currentProcess,
+                completed: completed
+            });
+            
+            // 5. Wait for the next "tick"
+            await delay(1000); // 1-second delay
+            
+            // 6. Increment time
+            currentTime++;
+
+            // 7. Safety break if nothing is happening
+            if (currentProcess === null && readyQueue.length === 0 && completed.length < n) {
+                let nextArrivalTime = Math.min(...processes.filter(p => p.arrival > currentTime).map(p => p.arrival));
+                if (nextArrivalTime === Infinity) break;
+                currentTime = nextArrivalTime;
+            }
+        }
+        
+        // Final UI update
+        updateUI({
+            currentTime: currentTime,
+            readyQueue: readyQueue,
+            cpuProcess: currentProcess,
+            completed: completed
+        });
+
+        completed.forEach(p => {
+            p.turnaroundTime = p.completionTime - p.arrival;
+            p.waitingTime = p.turnaroundTime - p.burst;
+        });
+        
+        return completed;
+    }
+
+
+    // --- 7. RESULTS & VISUALIZATION ---
+
+    function calculateMetrics(completedProcesses) {
+        let totalWaitingTime = 0;
+        let totalTurnaroundTime = 0;
+        
+        completedProcesses.forEach(p => {
+            totalWaitingTime += p.waitingTime;
+            totalTurnaroundTime += p.turnaroundTime;
+        });
+
+        const n = completedProcesses.length;
+        return {
+            avgWaitingTime: n > 0 ? totalWaitingTime / n : 0,
+            avgTurnaroundTime: n > 0 ? totalTurnaroundTime / n : 0
+        };
+    }
+
+    function updateMetrics(metrics) {
+        avgWaitingTime.textContent = metrics.avgWaitingTime.toFixed(2);
+        avgTurnaroundTime.textContent = metrics.avgTurnaroundTime.toFixed(2);
+    }
+
+    function initGanttChart(processes) {
+        if (ganttChart) {
+            ganttChart.destroy();
+        }
+
+        const pids = processes.map(p => p.pid).sort();
+        const chartData = {
+            labels: pids,
+            datasets: pids.map(pid => ({
+                label: pid,
+                data: [],
+                backgroundColor: getProcessColor(pid),
+                borderColor: 'rgba(0, 0, 0, 0.5)',
+                borderWidth: 1,
+                barPercentage: 0.8,
+                categoryPercentage: 0.9
+            }))
+        };
+
+        ganttChart = new Chart(ganttChartCanvas, {
+            type: 'bar',
+            data: chartData,
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const start = context.raw[0];
+                                const end = context.raw[1];
+                                return `${context.dataset.label}: [${start}, ${end}] (Duration: ${end - start})`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        title: { display: true, text: 'Time' },
+                        min: 0,
+                    },
+                    y: {
+                        title: { display: true, text: 'Process ID' }
+                    }
+                },
+                animation: false
+            }
+        });
+
+        return { pids, chartData };
+    }
+
+    function updateGanttChart(pid, start, end, pids, chartData) {
+        const datasetIndex = pids.indexOf(pid);
+        if (datasetIndex === -1) return;
+
+        const data = chartData.datasets[datasetIndex].data;
+        
+        if (data.length > 0) {
+            const lastBlock = data[data.length - 1];
+            if (lastBlock[1] === start) {
+                lastBlock[1] = end;
+                ganttChart.update();
+                return;
+            }
+        }
+        
+        data.push([start, end]);
+        ganttChart.update();
+    }
+
+    function getProcessColor(pid) {
+        let hash = 0;
+        for (let i = 0; i < pid.length; i++) {
+            hash = pid.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        const c = (hash & 0x00FFFFFF).toString(16).toUpperCase();
+        const color = "00000".substring(0, 6 - c.length) + c;
+        return `#${color}B3`;
+    }
+    
 });
