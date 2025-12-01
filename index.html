@@ -3,12 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CPU Scheduler Simulator</title>
+    <title>Intelligent CPU Scheduler Simulator</title>
+    
+    <!-- Link our CSS file -->
     <link rel="stylesheet" href="style.css">
+    
+    <!-- Import the Chart.js library for the Gantt Chart -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
 
+    <!-- INTRO OVERLAY (Splash Screen) -->
+    <div id="intro-overlay">
+        <h1 class="intro-title">INTELLIGENT CPU SCHEDULER SIMULATOR</h1>
+    </div>
+
+    <!-- MAIN APP HEADER -->
     <header>
         <h1>Intelligent CPU Scheduler Simulator</h1>
         <p>CSE 316: Operating Systems Project</p>
@@ -16,6 +26,7 @@
 
     <main class="container">
         
+        <!-- SECTION 1: INPUTS AND CONTROLS -->
         <section class="controls-container">
             <h2>Controls</h2>
             <form id="process-form">
@@ -32,6 +43,7 @@
                     <input type="number" id="priority" min="0" value="0" required>
                 </div>
 
+                <!-- Process Add/Clear Buttons -->
                 <div class="form-buttons">
                     <button type="button" id="add-process-btn">Add Process</button>
                     <button type="button" id="clear-processes-btn">Clear List</button>
@@ -39,6 +51,7 @@
 
                 <hr>
 
+                <!-- Algorithm Selection -->
                 <div class="form-group">
                     <label for="algorithm-select">Algorithm:</label>
                     <select id="algorithm-select">
@@ -49,31 +62,38 @@
                     </select>
                 </div>
                 
+                <!-- Time Quantum (for Round Robin) -->
                 <div class="form-group" id="time-quantum-group">
                     <label for="time-quantum">Time Quantum:</label>
                     <input type="number" id="time-quantum" min="1" value="2">
                 </div>
 
+                <!-- Main Simulation Button -->
                 <button type="submit" id="run-simulation-btn">Run Simulation</button>
             </form>
         </section>
 
+        <!-- SECTION 2: PROCESS LIST TABLE -->
         <section class="process-list-container">
             <h2>Process List</h2>
-            <table id="process-table">
-                <thead>
-                    <tr>
-                        <th>PID</th>
-                        <th>Arrival</th>
-                        <th>Burst</th>
-                        <th>Priority</th>
-                    </tr>
-                </thead>
-                <tbody id="process-table-body">
+            <div class="table-wrapper">
+                <table id="process-table">
+                    <thead>
+                        <tr>
+                            <th>PID</th>
+                            <th>Arrival</th>
+                            <th>Burst</th>
+                            <th>Priority</th>
+                        </tr>
+                    </thead>
+                    <tbody id="process-table-body">
+                        <!-- Processes will be added here by JavaScript -->
                     </tbody>
-            </table>
+                </table>
+            </div>
         </section>
 
+        <!-- SECTION 3: SIMULATION "STAGE" (for animation) -->
         <section class="simulation-container">
             <h2>Real-Time Simulation</h2>
             <div class="simulation-stage">
@@ -95,22 +115,41 @@
             </div>
         </section>
 
+        <!-- SECTION 4: RESULTS -->
         <section class="results-container">
             <h2>Results</h2>
             
+            <!-- Gantt Chart Area -->
             <div class="chart-container">
                 <canvas id="gantt-chart"></canvas>
+                
+                <!-- CREATIVE LOADING PLACEHOLDER -->
+                <div id="chart-placeholder">
+                    <div class="loader">
+                        <div class="bar"></div>
+                        <div class="bar"></div>
+                        <div class="bar"></div>
+                        <div class="bar"></div>
+                        <div class="bar"></div>
+                    </div>
+                    <p>System Idle... Waiting for Process</p>
+                </div>
             </div>
 
+            <!-- Performance Metrics -->
             <div id="metrics-container">
                 <h3>Performance Metrics</h3>
-                <p><strong>Average Waiting Time:</strong> <span id="avg-waiting-time">-</span></ins></p>
-                <p><strong>Average Turnaround Time:</strong> <span id="avg-turnaround-time">-</span></ins></p>
+                <p><strong>Average Waiting Time:</strong> <span id="avg-waiting-time">-</span></p>
+                <p><strong>Average Turnaround Time:</strong> <span id="avg-turnaround-time">-</span></p>
             </div>
         </section>
 
     </main>
 
+    <!-- NOTIFICATION POP-UP -->
+    <div id="notification">Output has been processed</div>
+
+    <!-- Link our JavaScript file -->
     <script src="script.js"></script>
 </body>
 </html>
