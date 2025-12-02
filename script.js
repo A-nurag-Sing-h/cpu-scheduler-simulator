@@ -4,12 +4,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- SPLASH SCREEN LOGIC ---
     const overlay = document.getElementById('intro-overlay');
     
-    // Wait for 2.5 seconds, then fade out
     if (overlay) {
         setTimeout(() => {
             overlay.classList.add('fade-out');
-            
-            // Remove from DOM completely after fade is done (0.8s later)
             setTimeout(() => {
                 overlay.style.display = 'none';
             }, 800); 
@@ -37,7 +34,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const processTableBody = document.getElementById('process-table-body');
     
-    // Simulation "Stage" Elements
+    // UI Elements
     const readyQueueProcesses = document.getElementById('ready-queue-processes');
     const cpuProcessHolder = document.getElementById('cpu-process');
     const completedProcessesList = document.getElementById('completed-processes-list');
@@ -135,7 +132,6 @@ document.addEventListener('DOMContentLoaded', () => {
             ganttChart = null;
         }
         
-        // SHOW the placeholder again when reset
         const placeholder = document.getElementById('chart-placeholder');
         if (placeholder) placeholder.classList.remove('hidden');
     }
@@ -174,10 +170,8 @@ document.addEventListener('DOMContentLoaded', () => {
             waitingTime: 0,
             turnaroundTime: 0
         }));
-        console.table(processes);
 
         try {
-            // HIDE the placeholder to show the chart
             const placeholder = document.getElementById('chart-placeholder');
             if (placeholder) placeholder.classList.add('hidden');
 
@@ -186,7 +180,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const metrics = calculateMetrics(completedProcesses);
             updateMetrics(metrics);
             
-            // SHOW NOTIFICATION
             showNotification("Output has been processed");
 
         } catch (error) {
@@ -200,7 +193,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
 
-    // --- 6. ANIMATION ENGINE ---
+    // --- 6. ANIMATION ENGINE (FIXED LOGIC) ---
 
     function delay(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
@@ -211,7 +204,6 @@ document.addEventListener('DOMContentLoaded', () => {
         pill.classList.add('process-pill');
         pill.id = `pill-${pid}`;
         pill.textContent = pid;
-        // Use neon color for the pill background
         pill.style.backgroundColor = getProcessColor(pid);
         return pill;
     }
@@ -244,31 +236,20 @@ document.addEventListener('DOMContentLoaded', () => {
         const completed = [];
         const n = processes.length;
 
-        // Sort initially by arrival time for cleaner processing (optional but good practice)
+        // Sort initially by arrival
         processes.sort((a, b) => a.arrival - b.arrival);
 
         while (completed.length < n) {
             
-            // 1. ARRIVALS: Check for arriving processes FIRST
-            // This ensures new arrivals get into the queue BEFORE we preempt the current process.
-            // Result: New Arrivals > Preempted Process (Classroom Logic)
+            // 1. Check for arriving processes at this EXACT time
             processes.forEach(p => {
                 if (p.arrival === currentTime && !completed.find(c => c.pid === p.pid) && !readyQueue.find(r => r.pid === p.pid)) {
                     readyQueue.push(p);
                 }
             });
-
-            // 2. PREEMPTION: Check if the running process hit its Time Quantum
-            // We do this HERE so the preempted process goes to the BACK of the line (behind new arrivals)
-            if (currentProcess && algorithm === 'rr' && quantumCounter === timeQuantum) {
-                readyQueue.push(currentProcess);
-                currentProcess = null;
-                quantumCounter = 0;
-            }
             
-            // 3. SELECTION: If CPU is idle, pick a process
+            // 2. Scheduler Decision (If CPU is idle)
             if (currentProcess === null && readyQueue.length > 0) {
-                
                 if (algorithm === 'fcfs') {
                     currentProcess = readyQueue.shift();
                 } 
@@ -284,34 +265,32 @@ document.addEventListener('DOMContentLoaded', () => {
                     currentProcess = readyQueue.shift();
                 }
 
-                // Initialize start time if it's the first time running
+                quantumCounter = 0;
                 if (currentProcess.startTime === -1) {
                     currentProcess.startTime = currentTime;
                 }
-                
-                // Reset quantum when a new process is picked (or resumed)
-                // Note: quantumCounter is already reset to 0 in the preemption/completion blocks, 
-                // but strictly ensuring it here is safe.
             }
 
-            // 4. EXECUTION: Run the process for 1 tick
+            // 3. Execution (If CPU has a process)
             if (currentProcess) {
                 updateGanttChart(currentProcess.pid, currentTime, currentTime + 1, pids, chartData);
                 currentProcess.remainingTime--;
-                quantumCounter++; 
+                quantumCounter++;
 
-                // Check for completion
                 if (currentProcess.remainingTime === 0) {
                     currentProcess.completionTime = currentTime + 1;
                     completed.push(currentProcess);
                     currentProcess = null;
                     quantumCounter = 0;
                 }
-                // NOTE: The "else if (quantum === timeQuantum)" block was REMOVED from here
-                // and moved to step 2.
+                else if (algorithm === 'rr' && quantumCounter === timeQuantum) {
+                    readyQueue.push(currentProcess);
+                    currentProcess = null;
+                    quantumCounter = 0;
+                }
             }
             
-            // 5. UPDATE UI
+            // 4. Visual Update
             updateUI({
                 currentTime: currentTime,
                 readyQueue: readyQueue,
@@ -319,24 +298,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 completed: completed
             });
             
-            // 6. DELAY & TIME INCREMENT
-            await delay(1000); 
-            
-            currentTime++;
-
-            // 7. SAFETY: Skip idle time if needed
+            // 5. GAP HANDLING (CRITICAL FIX)
+            // If CPU is idle, Queue is empty, but we are not done...
             if (currentProcess === null && readyQueue.length === 0 && completed.length < n) {
-                let nextArrivalTime = Math.min(...processes.filter(p => p.arrival > currentTime).map(p => p.arrival));
-                if (nextArrivalTime !== Infinity) {
-                    // Fast forward UI time too if skipping
-                     while (currentTime < nextArrivalTime) {
-                        currentTime++;
-                     }
+                // Look for the next arrival
+                const futureProcesses = processes.filter(p => p.arrival > currentTime);
+                if (futureProcesses.length > 0) {
+                    // Find the closest next arrival time
+                    const nextArrival = Math.min(...futureProcesses.map(p => p.arrival));
+                    
+                    // Fast-forward animation to that time
+                    currentTime = nextArrival;
+                    // CONTINUE loop immediately so we catch the arrival at the top of the next iteration
+                    continue; 
                 }
             }
+
+            // 6. Clock Tick (Only if we didn't jump)
+            await delay(1000); 
+            currentTime++;
         }
         
-        // Final UI update
+        // Final UI refresh
         updateUI({
             currentTime: currentTime,
             readyQueue: readyQueue,
@@ -344,7 +327,7 @@ document.addEventListener('DOMContentLoaded', () => {
             completed: completed
         });
 
-        // Calculate final stats
+        // Final calculations
         completed.forEach(p => {
             p.turnaroundTime = p.completionTime - p.arrival;
             p.waitingTime = p.turnaroundTime - p.burst;
@@ -455,22 +438,14 @@ document.addEventListener('DOMContentLoaded', () => {
         ganttChart.update();
     }
 
-    /**
-     * Generates a NEON color based on the PID.
-     * Uses HSL to ensure high saturation and lightness.
-     */
     function getProcessColor(pid) {
         let hash = 0;
         for (let i = 0; i < pid.length; i++) {
             hash = pid.charCodeAt(i) + ((hash << 5) - hash);
         }
-        
-        // Generate Hue from hash (0-360)
-        const hue = Math.abs(hash % 360);
-        
-        // Fixed Saturation and Lightness for Neon effect
-        // 100% Saturation, 60% Lightness, 0.9 Alpha
-        return `hsla(${hue}, 100%, 60%, 0.9)`; 
+        const c = (hash & 0x00FFFFFF).toString(16).toUpperCase();
+        const color = "00000".substring(0, 6 - c.length) + c;
+        return `#${color}E6`; 
     }
 
     // --- 8. NOTIFICATION HELPER ---
@@ -481,7 +456,7 @@ document.addEventListener('DOMContentLoaded', () => {
             notification.classList.add('show');
             setTimeout(() => {
                 notification.classList.remove('show');
-            }, 3000); // Hide after 3 seconds
+            }, 3000); 
         }
     }
     
